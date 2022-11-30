@@ -1,0 +1,43 @@
+name: Open a release PR
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release
+        required: true
+        type: string
+
+jobs:
+  make-release-pr:
+    permissions:
+      id-token: write # Enable OIDC
+      pull-requests: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: chainguard-dev/actions/setup-gitsign@main
+      - name: Install cargo-release
+        uses: taiki-e/install-action@v1
+        with:
+          tool: cargo-release
+
+      # Create a release branch on the base branch of this PR, which should be
+      # master
+      - name: "Create release branch"
+        uses: peterjgrainger/action-create-branch@v2.2.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          branch: release-${{ inputs.version }}
+          sha: '${{ github.event.pull_request.base.sha }}'
+
+      # create a PR based on master, targeting the newly created release branch
+      - uses: cargo-bins/release-pr@v2
+        with:
+          base-branch: release-${{ inputs.version }}
+          pr-merge-strategy: bors
+          pr-release-notes: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          branch-prefix: create-release
+          version: ${{ inputs.version }}
